@@ -205,6 +205,18 @@ const BlogDetail = () => {
         </Link>
       </div>
 
+      {/* Cover Image Hero */}
+      {blog.coverImage && (
+        <div className="blog-cover-hero">
+          <img
+            src={blog.coverImage}
+            alt={blog.title}
+            className="blog-cover-hero-img"
+          />
+          <div className="blog-cover-hero-gradient" />
+        </div>
+      )}
+
       {/* Header */}
       <header className="blog-detail-header">
         <div className="blog-detail-meta">

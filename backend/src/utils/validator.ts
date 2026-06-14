@@ -11,4 +11,5 @@ export const postsSchema = z.object({
   content: z.string(),
   publish: z.boolean().optional(),
   draft: z.boolean().optional(),
+  coverImage: z.string().url().optional().nullable(),
 });

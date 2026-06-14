@@ -8,6 +8,7 @@ export interface Blog {
   id: string;
   title: string;
   content: string;
+  coverImage?: string | null;
   authorId: string;
   author?: Author;
   published: boolean;

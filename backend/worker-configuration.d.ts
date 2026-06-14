@@ -4,6 +4,7 @@
 interface __BaseEnv_CloudflareBindings {
 	JWT_SECRET: string;
 	DATABASE_URL: string;
+	UNSPLASH_ACCESS_KEY: string;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {

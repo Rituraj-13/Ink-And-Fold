@@ -2077,3 +2077,690 @@ body {
 .comment-delete-btn:hover {
   color: var(--rust);
 }
+
+/* ===== COVER IMAGE SECTION (Write / Edit pages) ===== */
+.cover-image-section {
+  margin-bottom: 2rem;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cover-image-placeholder {
+  width: 100%;
+  min-height: 220px;
+  background: var(--cream-warm);
+  border: 2px dashed var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s;
+  padding: 2rem;
+}
+
+.cover-image-placeholder:hover {
+  border-color: var(--amber);
+  background: var(--amber-pale);
+}
+
+.cover-image-placeholder-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ink-muted);
+  transition: color 0.25s;
+}
+
+.cover-image-placeholder:hover .cover-image-placeholder-inner {
+  color: var(--amber);
+}
+
+.cover-image-placeholder-inner svg {
+  width: 48px;
+  height: 48px;
+  opacity: 0.6;
+}
+
+.cover-image-placeholder-text {
+  font-family: "Playfair Display", serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.cover-image-placeholder-sub {
+  font-family: "DM Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.cover-image-preview {
+  position: relative;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cover-image-img {
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  display: block;
+  border-radius: 4px;
+}
+
+.cover-image-actions {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cover-image-change-btn,
+.cover-image-remove-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.8rem;
+  font-family: "DM Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(10px);
+}
+
+.cover-image-change-btn svg,
+.cover-image-remove-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.cover-image-change-btn {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+}
+
+.cover-image-change-btn:hover { background: white; }
+
+.cover-image-remove-btn {
+  background: rgba(155, 57, 34, 0.85);
+  color: white;
+}
+
+.cover-image-remove-btn:hover { background: var(--rust); }
+
+/* ===== BLOG COVER HERO (BlogDetail page) ===== */
+.blog-cover-hero {
+  position: relative;
+  width: 100%;
+  max-height: 480px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.blog-cover-hero-img {
+  width: 100%;
+  height: 100%;
+  max-height: 480px;
+  object-fit: cover;
+  display: block;
+}
+
+.blog-cover-hero-gradient {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(to top, var(--paper) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* ===== BLOG CARD THUMBNAIL ===== */
+.blog-card-thumb {
+  flex-shrink: 0;
+  width: 120px;
+  height: 90px;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-left: 1.5rem;
+  align-self: center;
+}
+
+.blog-card-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s;
+}
+
+.blog-card:hover .blog-card-thumb-img { transform: scale(1.05); }
+
+.featured-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 3px;
+  transition: transform 0.4s;
+}
+
+.blog-card:hover .featured-cover-img { transform: scale(1.03); }
+
+@media (max-width: 768px) {
+  .blog-card-thumb { display: none; }
+}
+
+/* ===== UNSPLASH PICKER MODAL ===== */
+.unsplash-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 18, 9, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: overlayFadeIn 0.2s ease;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.unsplash-modal {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 860px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalSlideIn 0.25s ease;
+  box-shadow: 0 24px 64px rgba(26, 18, 9, 0.4);
+}
+
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.unsplash-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.5rem 1.75rem 1.25rem;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.unsplash-title {
+  font-family: "Playfair Display", serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.unsplash-subtitle {
+  font-family: "DM Mono", monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  margin-top: 0.25rem;
+}
+
+.unsplash-close-btn {
+  background: none;
+  border: 1px solid var(--border-light);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ink-muted);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.unsplash-close-btn svg { width: 16px; height: 16px; }
+
+.unsplash-close-btn:hover {
+  background: var(--cream-warm);
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.unsplash-search-row {
+  padding: 1.25rem 1.75rem 0.75rem;
+  flex-shrink: 0;
+}
+
+.unsplash-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.unsplash-search-icon {
+  position: absolute;
+  left: 0.9rem;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.unsplash-search-input {
+  width: 100%;
+  background: var(--cream-warm);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.7rem 2.8rem 0.7rem 2.8rem;
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.95rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.unsplash-search-input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(200, 120, 42, 0.12);
+}
+
+.unsplash-search-input::placeholder { color: var(--ink-muted); }
+
+.unsplash-clear-btn {
+  position: absolute;
+  right: 0.8rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  transition: color 0.15s;
+  padding: 0.2rem;
+  line-height: 1;
+}
+
+.unsplash-clear-btn:hover { color: var(--ink); }
+
+.unsplash-suggestions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0 1.75rem 1rem;
+  flex-shrink: 0;
+}
+
+.unsplash-suggestion {
+  background: var(--cream-warm);
+  border: 1px solid var(--border-light);
+  border-radius: 100px;
+  padding: 0.3rem 0.85rem;
+  font-family: "DM Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: lowercase;
+}
+
+.unsplash-suggestion:hover,
+.unsplash-suggestion.active {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--ink);
+}
+
+.unsplash-selected-preview {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0 1.75rem 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(200, 120, 42, 0.08);
+  border: 1px solid rgba(200, 120, 42, 0.25);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.unsplash-selected-thumb {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.unsplash-selected-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.unsplash-selected-label {
+  font-family: "DM Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--amber);
+  font-weight: 500;
+}
+
+.unsplash-selected-author {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+}
+
+.unsplash-selected-author a {
+  color: var(--amber);
+  text-decoration: none;
+}
+
+.unsplash-selected-author a:hover { text-decoration: underline; }
+
+.unsplash-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 0 1.75rem 1rem;
+  padding: 0.9rem 1rem;
+  background: rgba(155, 57, 34, 0.08);
+  border: 1px solid rgba(155, 57, 34, 0.25);
+  border-radius: 4px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.88rem;
+  color: var(--rust);
+  flex-shrink: 0;
+}
+
+.unsplash-error--config {
+  background: rgba(200, 120, 42, 0.08);
+  border-color: rgba(200, 120, 42, 0.25);
+  color: var(--ink-soft);
+}
+
+.unsplash-error-code {
+  display: block;
+  margin-top: 0.4rem;
+  font-family: "DM Mono", monospace;
+  font-size: 0.78rem;
+  background: var(--cream-warm);
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  color: var(--amber);
+}
+
+.unsplash-grid-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 1.75rem 1rem;
+}
+
+.unsplash-grid-wrap::-webkit-scrollbar { width: 6px; }
+.unsplash-grid-wrap::-webkit-scrollbar-track { background: var(--cream-warm); }
+.unsplash-grid-wrap::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.unsplash-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+}
+
+@media (max-width: 640px) {
+  .unsplash-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.unsplash-photo-btn {
+  position: relative;
+  aspect-ratio: 4/3;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.unsplash-photo-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+.unsplash-photo-btn.selected {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(200, 120, 42, 0.3);
+}
+
+.unsplash-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s;
+}
+
+.unsplash-photo-btn:hover .unsplash-photo-img { transform: scale(1.05); }
+
+.unsplash-photo-check {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 24px;
+  height: 24px;
+  background: var(--amber);
+  color: var(--ink);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.unsplash-photo-hover {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.5rem 0.6rem;
+  background: linear-gradient(to top, rgba(26, 18, 9, 0.8) 0%, transparent 100%);
+  color: white;
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.72rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unsplash-photo-btn:hover .unsplash-photo-hover { opacity: 1; }
+
+.unsplash-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem;
+  color: var(--ink-muted);
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.9rem;
+}
+
+.unsplash-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-light);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.unsplash-empty {
+  text-align: center;
+  padding: 3rem;
+  color: var(--ink-muted);
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: 1rem;
+}
+
+.unsplash-load-more-wrap {
+  text-align: center;
+  padding: 1.25rem 0 0.5rem;
+}
+
+.unsplash-load-more {
+  background: var(--cream-warm);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.6rem 1.5rem;
+  font-family: "DM Mono", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unsplash-load-more:hover:not(:disabled) {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+.unsplash-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.unsplash-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.75rem;
+  border-top: 1px solid var(--border-light);
+  flex-shrink: 0;
+  gap: 1rem;
+}
+
+.unsplash-footer-left,
+.unsplash-footer-right {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.unsplash-cancel-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.55rem 1.25rem;
+  font-family: "DM Mono", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unsplash-cancel-btn:hover {
+  color: var(--ink);
+  background: var(--cream-warm);
+}
+
+.unsplash-remove-btn {
+  background: none;
+  border: 1px solid rgba(155, 57, 34, 0.4);
+  border-radius: 3px;
+  padding: 0.55rem 1.25rem;
+  font-family: "DM Mono", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rust);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unsplash-remove-btn:hover { background: rgba(155, 57, 34, 0.08); }
+
+.unsplash-confirm-btn {
+  background: var(--amber);
+  border: none;
+  border-radius: 3px;
+  padding: 0.55rem 1.5rem;
+  font-family: "DM Mono", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.unsplash-confirm-btn:hover:not(:disabled) { background: var(--amber-light); }
+
+.unsplash-confirm-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .unsplash-modal {
+    max-height: 95vh;
+    border-radius: 12px 12px 0 0;
+    align-self: flex-end;
+  }
+
+  .unsplash-header,
+  .unsplash-search-row,
+  .unsplash-suggestions,
+  .unsplash-grid-wrap,
+  .unsplash-footer {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .unsplash-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .unsplash-footer-right { flex-direction: column; }
+
+  .unsplash-confirm-btn,
+  .unsplash-cancel-btn {
+    width: 100%;
+    text-align: center;
+  }
+}

@@ -12,6 +12,7 @@ const TICKER_ITEMS = [
 ];
 
 const LandingPage = () => {
+  const isLoggedIn = !!localStorage.getItem("token");
   const tickerContent = [...TICKER_ITEMS, ...TICKER_ITEMS];
 
   return (
@@ -30,12 +31,25 @@ const LandingPage = () => {
             say. No algorithms. No distractions. Just you and your story.
           </p>
           <div className="hero-actions">
-            <Link to="/signup" className="btn-primary">
-              Start Writing Free
-            </Link>
-            <Link to="/signin" className="btn-secondary">
-              Sign In
-            </Link>
+            {isLoggedIn ? (
+              <>
+                <Link to="/write" className="btn-primary">
+                  Start Writing
+                </Link>
+                <Link to="/blogs" className="btn-secondary">
+                  Browse Stories
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/signup" className="btn-primary">
+                  Start Writing Free
+                </Link>
+                <Link to="/signin" className="btn-secondary">
+                  Sign In
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Floating stats */}
@@ -263,9 +277,15 @@ const LandingPage = () => {
             Join thousands of writers who have made Ink & Fold their writing
             home.
           </p>
-          <Link to="/signup" className="btn-primary">
-            Create Free Account →
-          </Link>
+          {isLoggedIn ? (
+            <Link to="/write" className="btn-primary">
+              Write a Story →
+            </Link>
+          ) : (
+            <Link to="/signup" className="btn-primary">
+              Create Free Account →
+            </Link>
+          )}
         </div>
       </section>
 

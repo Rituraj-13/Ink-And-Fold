@@ -199,7 +199,15 @@ const BlogsPage = () => {
                       </div>
                     </div>
                     <div className="featured-visual">
-                      <div className="featured-visual-inner"></div>
+                      {blog.coverImage ? (
+                        <img
+                          src={blog.coverImage}
+                          alt={blog.title}
+                          className="featured-cover-img"
+                        />
+                      ) : (
+                        <div className="featured-visual-inner"></div>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -207,33 +215,40 @@ const BlogsPage = () => {
                     <div className="blog-card-number">
                       {String(index).padStart(2, "0")}
                     </div>
-                    <div className="blog-card-tag">Story</div>
-                    <h3 className="blog-card-title">{blog.title}</h3>
-                    <p className="blog-card-excerpt">{blog.content}</p>
-                    <div className="blog-card-meta">
-                      <div className="blog-card-author">
-                        <div className="author-avatar">
-                          {getAuthorInitials(blog)}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="blog-card-tag">Story</div>
+                      <h3 className="blog-card-title">{blog.title}</h3>
+                      <p className="blog-card-excerpt">{blog.content}</p>
+                      <div className="blog-card-meta">
+                        <div className="blog-card-author">
+                          <div className="author-avatar">
+                            {getAuthorInitials(blog)}
+                          </div>
+                          <span>{getAuthorName(blog)}</span>
                         </div>
-                        <span>{getAuthorName(blog)}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.8rem", flexWrap: "wrap" }}>
-                        <span className="blog-card-read">
-                          {estimateReadTime(blog.content)}
-                        </span>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", fontSize: "0.8rem", color: "var(--ink-muted)" }} title="Likes">
-                          ❤️ {blog._count?.likes ?? 0}
-                        </span>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", fontSize: "0.8rem", color: "var(--ink-muted)" }} title="Responses">
-                          💬 {blog._count?.comments ?? 0}
-                        </span>
-                        {blog.bookmarks && blog.bookmarks.length > 0 && (
-                          <span style={{ fontSize: "0.8rem" }} title="Bookmarked">
-                            🔖
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.8rem", flexWrap: "wrap" }}>
+                          <span className="blog-card-read">
+                            {estimateReadTime(blog.content)}
                           </span>
-                        )}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", fontSize: "0.8rem", color: "var(--ink-muted)" }} title="Likes">
+                            ❤️ {blog._count?.likes ?? 0}
+                          </span>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", fontSize: "0.8rem", color: "var(--ink-muted)" }} title="Responses">
+                            💬 {blog._count?.comments ?? 0}
+                          </span>
+                          {blog.bookmarks && blog.bookmarks.length > 0 && (
+                            <span style={{ fontSize: "0.8rem" }} title="Bookmarked">
+                              🔖
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    {blog.coverImage && (
+                      <div className="blog-card-thumb">
+                        <img src={blog.coverImage} alt={blog.title} className="blog-card-thumb-img" />
+                      </div>
+                    )}
                   </>
                 )}
               </Link>

@@ -184,7 +184,7 @@ app.post("/api/v1/signin", async (c) => {
 
 app.post("/api/v1/blog", async (c) => {
   const body = await c.req.json();
-  const { title, content, draft, publish } = body;
+  const { title, content, draft, publish, coverImage } = body;
 
   const parsedBody = postsSchema.safeParse(body);
   if (!parsedBody.success) {
@@ -207,6 +207,7 @@ app.post("/api/v1/blog", async (c) => {
         authorId: userID,
         draft: draft,
         published: publish,
+        ...(coverImage ? { coverImage } : {}),
       },
     });
 
@@ -236,7 +237,7 @@ app.put("/api/v1/blog/:id", async (c) => {
   const blogId = c.req.param("id");
 
   const body = await c.req.json();
-  const { title, content, publish, draft } = body;
+  const { title, content, publish, draft, coverImage } = body;
 
   const parsedBody = postsSchema.safeParse(body);
   if (!parsedBody.success) {
@@ -270,6 +271,7 @@ app.put("/api/v1/blog/:id", async (c) => {
         content,
         ...(publish !== undefined && { published: publish }),
         ...(draft !== undefined && { draft }),
+        ...(coverImage !== undefined && { coverImage: coverImage || null }),
       },
     });
 
@@ -288,6 +290,9 @@ app.get("/api/v1/blog/all", async (c) => {
 
   try {
     const blogList = await prisma.post.findMany({
+      where: {
+        published: true,
+      },
       include: {
         author: {
           select: { id: true, name: true, email: true },
@@ -397,7 +402,56 @@ app.get("/api/v1/blog/bookmarks", async (c) => {
   }
 });
 
-// NOTE: Toggle Like for a blog post
+// NOTE: Unsplash image search proxy
+app.get("/api/v1/unsplash/search", async (c) => {
+  const query = c.req.query("query");
+  const page = c.req.query("page") || "1";
+  const perPage = c.req.query("per_page") || "20";
+
+  if (!query || !query.trim()) {
+    return c.json({ message: "Search query is required" }, 400);
+  }
+
+  const accessKey = c.env.UNSPLASH_ACCESS_KEY;
+  if (!accessKey) {
+    return c.json({ message: "Unsplash API not configured" }, 503);
+  }
+
+  try {
+    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}&orientation=landscape`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Client-ID ${accessKey}`,
+        "Accept-Version": "v1",
+      },
+    });
+
+    if (!res.ok) {
+      return c.json({ message: "Unsplash API error" }, res.status as any);
+    }
+
+    const data: any = await res.json();
+    const photos = data.results.map((photo: any) => ({
+      id: photo.id,
+      url: photo.urls.regular,
+      thumb: photo.urls.thumb,
+      small: photo.urls.small,
+      alt: photo.alt_description || photo.description || "",
+      author: photo.user?.name || "Unknown",
+      authorProfile: photo.user?.links?.html || "",
+      color: photo.color || "#cccccc",
+    }));
+
+    return c.json(
+      { photos, total: data.total, totalPages: data.total_pages },
+      200,
+    );
+  } catch (error) {
+    console.error("ERR: Unsplash search - ", error);
+    return c.json({ message: "Internal Server Error !" }, 500);
+  }
+});
+
 app.post("/api/v1/blog/:id/like", async (c) => {
   const prisma = c.get("prisma");
   const userId = c.get("userId");
@@ -602,7 +656,11 @@ app.get("/api/v1/blog/:id", async (c) => {
     where: { id: blogId },
     include: {
       author: {
-        select: { id: true, name: true, email: true },
+        select: {
+          id: true,
+          name: true,
+          // email: true,
+        },
       },
       likes: {
         where: { userId },

@@ -1665,6 +1665,11 @@ body {
   color: var(--amber);
   border: 1px solid rgba(200, 120, 42, 0.2);
 }
+.mypost-status-badge.under-review {
+  background: rgba(155, 57, 34, 0.08);
+  color: var(--rust);
+  border: 1px solid rgba(155, 57, 34, 0.2);
+}
 
 .mypost-date {
   font-family: "DM Mono", monospace;

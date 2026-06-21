@@ -13,38 +13,54 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id        String      @id @default(uuid())
-  email     String      @unique
-  name      String?
-  password  String
-  posts     Post[]
-  likes     Likes[]
-  comments  Comments[]
-  bookmarks Bookmarks[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+enum UserType {
+  USER
+  ADMIN
 }
 
-model Post {
+model User {
   id         String      @id @default(uuid())
-  title      String
-  content    String
-  coverImage String?
-  published  Boolean     @default(false)
-  draft      Boolean     @default(true)
-  author     User        @relation(fields: [authorId], references: [id])
-  authorId   String
+  userType   UserType    @default(USER)
+  email      String      @unique
+  name       String?
+  password   String
+  isVerified Boolean     @default(false)
+  isBanned   Boolean     @default(false)
+  posts      Post[]
   likes      Likes[]
   comments   Comments[]
   bookmarks  Bookmarks[]
+  sessions   Session[]
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 }
 
+enum PostStatus {
+  DRAFT
+  UNDER_REVIEW
+  PUBLISHED
+}
+
+model Post {
+  id              String      @id @default(uuid())
+  title           String
+  content         String
+  coverImage      String?
+  status          PostStatus  @default(DRAFT)
+  flaggedMetrics  String[]
+  rejectionReason String?
+  author          User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId        String
+  likes           Likes[]
+  comments        Comments[]
+  bookmarks       Bookmarks[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
 model Likes {
   id        String   @id @default(uuid())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   post      Post     @relation(fields: [postId], references: [id])
   postId    String
@@ -57,7 +73,7 @@ model Likes {
 model Comments {
   id        String   @id @default(uuid())
   content   String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   post      Post     @relation(fields: [postId], references: [id])
   postId    String
@@ -67,7 +83,7 @@ model Comments {
 
 model Bookmarks {
   id        String   @id @default(uuid())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   post      Post     @relation(fields: [postId], references: [id])
   postId    String
@@ -75,4 +91,21 @@ model Bookmarks {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, postId])
+}
+
+// model Otp {
+//   id        String   @id @default(uuid())
+//   email     String   @unique
+//   otpHash   String
+//   expiresAt DateTime
+//   createdAt DateTime @default(now())
+// }
+
+model Session {
+  id           String   @id @default(uuid())
+  refreshToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
 }

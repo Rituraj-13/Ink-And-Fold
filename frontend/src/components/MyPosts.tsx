@@ -60,8 +60,8 @@ const MyPostsPage = () => {
     }
   };
 
-  const published = allPosts.filter((b) => b.published && !b.draft);
-  const drafts = allPosts.filter((b) => b.draft || !b.published);
+  const published = allPosts.filter((b) => b.status === "PUBLISHED");
+  const drafts = allPosts.filter((b) => b.status === "DRAFT" || b.status === "UNDER_REVIEW");
   
   const displayed =
     tab === "published"
@@ -69,7 +69,7 @@ const MyPostsPage = () => {
       : tab === "drafts"
       ? drafts
       : bookmarks;
-
+ 
   const handleDelete = async (id: string) => {
     setDeleting(true);
     try {
@@ -83,22 +83,29 @@ const MyPostsPage = () => {
       setConfirmDelete(null);
     }
   };
-
+ 
   const handlePublishDraft = async (blog: Blog) => {
     setPublishing(blog.id);
     try {
-      await api.put(`/api/v1/blog/${blog.id}`, {
+      const response = await api.put(`/api/v1/blog/${blog.id}`, {
         title: blog.title,
         content: blog.content,
-        publish: true,
-        draft: false,
+        status: "PUBLISHED",
       });
+      
+      const updatedBlog = response.data.blog;
+      
       setAllPosts((prev) =>
         prev.map((b) =>
-          b.id === blog.id ? { ...b, published: true, draft: false } : b
+          b.id === blog.id ? { ...b, ...updatedBlog } : b
         )
       );
-      setToast("Story published!");
+ 
+      if (updatedBlog?.status === "UNDER_REVIEW") {
+        setToast("Flagged! Post remains a draft and under review.");
+      } else {
+        setToast("Story published!");
+      }
     } catch (err: any) {
       setToast("Failed to publish. Try again.");
     } finally {
@@ -232,10 +239,16 @@ const MyPostsPage = () => {
                     ) : (
                       <span
                         className={`mypost-status-badge ${
-                          blog.published ? "published" : "draft"
+                          blog.status === "UNDER_REVIEW" ? "under-review" : blog.status === "PUBLISHED" ? "published" : "draft"
                         }`}
                       >
-                        {blog.published ? "● Published" : "○ Draft"}
+                        {blog.status === "UNDER_REVIEW" ? (
+                          `⚠️ Under Review${blog.flaggedMetrics && blog.flaggedMetrics.length > 0 ? ` (${blog.flaggedMetrics.join(", ")})` : ""}`
+                        ) : blog.status === "PUBLISHED" ? (
+                          "● Published"
+                        ) : (
+                          "○ Draft"
+                        )}
                       </span>
                     )}
                     <span className="mypost-date">
@@ -245,18 +258,35 @@ const MyPostsPage = () => {
                       {estimateReadTime(blog.content)} read
                     </span>
                   </div>
-
+ 
                   <h2 className="mypost-card-title">
                     <Link to={`/blog/${blog.id}`} className="mypost-title-link">
                       {blog.title}
                     </Link>
                   </h2>
-
+ 
                   <p className="mypost-card-excerpt">
                     {blog.content.replace(/[#*_`>]/g, "")}
                   </p>
-                </div>
 
+                  {/* Rejection Alert Box */}
+                  {blog.status === "DRAFT" && blog.rejectionReason && (
+                    <div
+                      style={{
+                        background: "rgba(155, 57, 34, 0.04)",
+                        borderLeft: "3px solid var(--rust)",
+                        padding: "0.5rem 0.75rem",
+                        marginTop: "0.75rem",
+                        fontSize: "0.82rem",
+                        color: "var(--rust)",
+                        borderRadius: "2px",
+                      }}
+                    >
+                      <strong style={{ fontWeight: 600 }}>Revision Required:</strong> {blog.rejectionReason}
+                    </div>
+                  )}
+                </div>
+ 
                 {/* Right: actions */}
                 <div className="mypost-actions">
                   {tab === "bookmarks" ? (
@@ -270,7 +300,7 @@ const MyPostsPage = () => {
                   ) : (
                     <>
                       {/* Publish (only for drafts) */}
-                      {(blog.draft || !blog.published) && (
+                      {blog.status !== "PUBLISHED" && (
                         <button
                           id={`publish-draft-${blog.id}`}
                           className="mypost-action-btn publish"

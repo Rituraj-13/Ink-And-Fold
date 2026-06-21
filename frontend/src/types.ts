@@ -11,8 +11,9 @@ export interface Blog {
   coverImage?: string | null;
   authorId: string;
   author?: Author;
-  published: boolean;
-  draft: boolean;
+  status: "DRAFT" | "UNDER_REVIEW" | "PUBLISHED";
+  flaggedMetrics?: string[];
+  rejectionReason?: string | null;
   createdAt?: string;
   updatedAt?: string;
   likes?: { id: string }[];

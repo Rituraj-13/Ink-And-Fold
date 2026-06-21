@@ -18,11 +18,9 @@ const SignupPage = () => {
     setLoading(true);
 
     try {
-      const res = await api.post("/api/v1/signup", { name, email, password });
-      const { token } = res.data;
-      localStorage.setItem("token", token);
-      setToast("Account created! Welcome aboard.");
-      setTimeout(() => navigate("/blogs"), 1200);
+      await api.post("/api/v1/signup", { name, email, password });
+      setToast("Verification code sent! Please check your email.");
+      setTimeout(() => navigate(`/verify-otp?email=${encodeURIComponent(email)}`), 1200);
     } catch (err: any) {
       const msg =
         err?.response?.data?.message || "Something went wrong. Try again.";

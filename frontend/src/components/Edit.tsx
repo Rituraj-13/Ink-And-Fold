@@ -137,12 +137,17 @@ const EditPage = () => {
     setError("");
     setSubmitting("save");
     try {
-      await api.put(`/api/v1/blog/${id}`, {
+      const response = await api.put(`/api/v1/blog/${id}`, {
         title,
         content,
         coverImage: coverImage || null,
       });
-      setToast("Changes saved!");
+      const updatedBlog = response.data.blog;
+      if (updatedBlog?.status === "UNDER_REVIEW") {
+        setToast("Flagged! Post is under review.");
+      } else {
+        setToast("Changes saved!");
+      }
       setTimeout(() => navigate("/my-posts"), 1500);
     } catch (err: any) {
       if (err?.response?.status === 401) { localStorage.removeItem("token"); navigate("/signin"); }
@@ -159,14 +164,18 @@ const EditPage = () => {
     setError("");
     setSubmitting("publish");
     try {
-      await api.put(`/api/v1/blog/${id}`, {
+      const response = await api.put(`/api/v1/blog/${id}`, {
         title,
         content,
-        publish: true,
-        draft: false,
+        status: "PUBLISHED",
         coverImage: coverImage || null,
       });
-      setToast("Story published!");
+      const updatedBlog = response.data.blog;
+      if (updatedBlog?.status === "UNDER_REVIEW") {
+        setToast("Flagged! Post remains draft and under review.");
+      } else {
+        setToast("Story published!");
+      }
       setTimeout(() => navigate("/my-posts"), 1500);
     } catch (err: any) {
       if (err?.response?.status === 401) { localStorage.removeItem("token"); navigate("/signin"); }
@@ -202,7 +211,7 @@ const EditPage = () => {
         <div className="write-topbar-right">
           <span className="write-wordcount">{wordCount} words · {readTime} min</span>
           {/* Show Publish only if the post is still a draft */}
-          {originalBlog?.draft && !originalBlog?.published && (
+          {originalBlog?.status !== "PUBLISHED" && (
             <button id="publish-from-edit-btn" onClick={handlePublish} disabled={submitting !== null} className="write-publish-btn">
               {submitting === "publish" ? "Publishing..." : "Publish →"}
             </button>
@@ -217,7 +226,11 @@ const EditPage = () => {
         {/* Edit badge */}
         <div className="write-category-label">
           <span className="write-category-dash" />
-          Editing: {originalBlog?.published ? (
+          Editing: {originalBlog?.status === "UNDER_REVIEW" ? (
+            <span style={{ color: "var(--rust)", marginLeft: "0.4rem", fontWeight: 600 }}>
+              ⚠️ Under Review{originalBlog.flaggedMetrics && originalBlog.flaggedMetrics.length > 0 ? ` (${originalBlog.flaggedMetrics.join(", ")})` : ""}
+            </span>
+          ) : originalBlog?.status === "PUBLISHED" ? (
             <span style={{ color: "var(--sage)", marginLeft: "0.4rem" }}>Published</span>
           ) : (
             <span style={{ color: "var(--ink-muted)", marginLeft: "0.4rem" }}>Draft</span>
@@ -225,6 +238,22 @@ const EditPage = () => {
         </div>
 
         {error && <div className="form-error" style={{ marginBottom: "1.5rem" }}>{error}</div>}
+
+        {originalBlog?.status === "DRAFT" && originalBlog?.rejectionReason && (
+          <div
+            style={{
+              background: "rgba(155, 57, 34, 0.04)",
+              borderLeft: "4px solid var(--rust)",
+              padding: "0.75rem 1rem",
+              marginBottom: "1.5rem",
+              fontSize: "0.88rem",
+              color: "var(--rust)",
+              borderRadius: "2px",
+            }}
+          >
+            <strong style={{ fontWeight: 600 }}>Revision Required by Admin:</strong> {originalBlog.rejectionReason}
+          </div>
+        )}
 
         {/* Cover Image Section */}
         <div className="cover-image-section">

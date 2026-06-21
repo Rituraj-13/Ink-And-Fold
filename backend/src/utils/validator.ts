@@ -9,7 +9,6 @@ export const userSchema = z.object({
 export const postsSchema = z.object({
   title: z.string(),
   content: z.string(),
-  publish: z.boolean().optional(),
-  draft: z.boolean().optional(),
+  status: z.enum(["DRAFT", "UNDER_REVIEW", "PUBLISHED"]).optional(),
   coverImage: z.string().url().optional().nullable(),
 });

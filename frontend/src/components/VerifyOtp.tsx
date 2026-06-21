@@ -1,22 +1,23 @@
-import { useState, useEffect, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, type FormEvent, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api";
 import Toast from "./Toast";
 
-const SigninPage = () => {
+const VerifyOtpPage = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [searchParams] = useSearchParams();
+  const email = searchParams.get("email") || "";
+
+  const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("error") === "suspended") {
-      setError("User is Suspended, Contact Admin !");
+    if (!email) {
+      setError("No email address provided. Please sign up first.");
     }
-  }, []);
+  }, [email]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -24,20 +25,15 @@ const SigninPage = () => {
     setLoading(true);
 
     try {
-      const res = await api.post("/api/v1/signin", { email, password });
+      const res = await api.post("/api/v1/verify-otp", { email, otp });
       const { token } = res.data;
       localStorage.setItem("token", token);
-      setToast("Welcome back! Redirecting...");
+      setToast("Verification successful! Logging you in...");
       setTimeout(() => navigate("/blogs"), 1200);
     } catch (err: any) {
-      if (err?.response?.status === 403 && err?.response?.data?.unverified) {
-        setToast("Email not verified! Redirecting to verification...");
-        setTimeout(() => navigate(`/verify-otp?email=${encodeURIComponent(email)}`), 1200);
-      } else {
-        const msg =
-          err?.response?.data?.message || "Invalid credentials. Try again.";
-        setError(msg);
-      }
+      const msg =
+        err?.response?.data?.message || "Invalid verification code. Try again.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -49,7 +45,7 @@ const SigninPage = () => {
         {/* Left Panel */}
         <div className="auth-panel-left">
           <div className="auth-panel-left-content">
-            <div className="auth-panel-number">02</div>
+            <div className="auth-panel-number">03</div>
             <div style={{ position: "relative", marginTop: "2rem" }}>
               <span
                 style={{
@@ -71,11 +67,11 @@ const SigninPage = () => {
                     background: "var(--amber)",
                   }}
                 ></span>
-                Welcome Back
+                Security First
               </span>
             </div>
             <p className="auth-panel-quote">
-              The world always needs another <em>voice</em> worth hearing.
+              Protecting your <em>words</em> and your digital presence.
             </p>
             <p className="auth-panel-attr">— Ink & Fold</p>
           </div>
@@ -89,9 +85,9 @@ const SigninPage = () => {
               }}
             >
               {[
-                { icon: "✦", text: "Discover curated stories from real writers" },
-                { icon: "✦", text: "Publish your thoughts, no algorithm games" },
-                { icon: "✦", text: "Build an audience that truly cares" },
+                { icon: "✦", text: "One-time code sent directly to your inbox" },
+                { icon: "✦", text: "Keeps your account secure from unauthorized access" },
+                { icon: "✦", text: "Session cookies stored safely and securely" },
               ].map((item, i) => (
                 <div
                   key={i}
@@ -130,14 +126,14 @@ const SigninPage = () => {
         <div className="auth-panel-right">
           <div className="auth-form-container">
             <div className="auth-form-header">
-              <div className="auth-form-label">Sign In</div>
+              <div className="auth-form-label">Verify Email</div>
               <h1 className="auth-form-title">
-                Good to see
+                Enter your
                 <br />
-                you again
+                verification code
               </h1>
               <p className="auth-form-subtitle">
-                Sign in to continue reading and writing.
+                We sent a 6-digit verification code to <strong style={{ color: "var(--foreground)" }}>{email || "your email"}</strong>.
               </p>
             </div>
 
@@ -145,48 +141,41 @@ const SigninPage = () => {
 
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label className="form-label" htmlFor="email">
-                  Email Address
+                <label className="form-label" htmlFor="otp">
+                  Verification Code (OTP)
                 </label>
                 <input
-                  id="email"
-                  type="email"
+                  id="otp"
+                  type="text"
                   className="form-input"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="123456"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="password">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  className="form-input"
-                  placeholder="Your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+                  disabled={!email || loading}
+                  style={{
+                    letterSpacing: "0.3em",
+                    textAlign: "center",
+                    fontSize: "1.25rem",
+                    fontFamily: '"DM Mono", monospace',
+                  }}
                 />
               </div>
 
               <button
-                id="signin-btn"
+                id="verify-btn"
                 type="submit"
                 className="form-btn"
-                disabled={loading}
+                disabled={loading || !email || otp.length !== 6}
               >
-                {loading ? "Signing In..." : "Sign In →"}
+                {loading ? "Verifying..." : "Verify & Sign In →"}
               </button>
             </form>
 
             <p className="form-link">
-              Don't have an account?{" "}
-              <Link to="/signup">Create one here</Link>
+              Need to try a different email?{" "}
+              <Link to="/signup">Go back to Sign Up</Link>
             </p>
           </div>
         </div>
@@ -197,4 +186,4 @@ const SigninPage = () => {
   );
 };
 
-export default SigninPage;
+export default VerifyOtpPage;

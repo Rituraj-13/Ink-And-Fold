@@ -116,14 +116,21 @@ const WritePage = () => {
     setError("");
     setSubmitting("publish");
     try {
-      await api.post("/api/v1/blog", {
+      const response = await api.post("/api/v1/blog", {
         title,
         content,
-        draft: false,
-        publish: true,
+        status: "PUBLISHED",
         ...(coverImage ? { coverImage } : {}),
       });
-      setToast("Story published! Redirecting...");
+      
+      const createdBlog = response.data.blog;
+      
+      if (createdBlog?.status === "UNDER_REVIEW") {
+        setToast("Flagged! Story saved as draft and placed under review.");
+      } else {
+        setToast("Story published! Redirecting...");
+      }
+      
       setTimeout(() => navigate("/my-posts"), 1500);
     } catch (err: any) {
       if (err?.response?.status === 401) { localStorage.removeItem("token"); navigate("/signin"); }
@@ -141,8 +148,7 @@ const WritePage = () => {
       await api.post("/api/v1/blog", {
         title,
         content,
-        draft: true,
-        publish: false,
+        status: "DRAFT",
         ...(coverImage ? { coverImage } : {}),
       });
       setToast("Saved as draft!");

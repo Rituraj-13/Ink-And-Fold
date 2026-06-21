@@ -8,12 +8,12 @@
   ],
   // This is the Connection Pool URL
   "vars": {},
-  // "kv_namespaces": [
-  //   {
-  //     "binding": "MY_KV_NAMESPACE",
-  //     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-  //   }
-  // ],
+  "kv_namespaces": [
+    {
+      "binding": "INK_FOLD_BANNED_USERS",
+      "id": "6cf53363f1104479a29acba1ce43d4c7"
+    }
+  ],
   // "r2_buckets": [
   //   {
   //     "binding": "MY_BUCKET",

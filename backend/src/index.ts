@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { PrismaClient } from "./generated/prisma/edge";
+import { PrismaClient, UserType } from "./generated/prisma/edge";
 import { withAccelerate } from "@prisma/extension-accelerate";
 import bcrypt from "bcryptjs";
 import { sign, verify } from "hono/jwt";
@@ -8,8 +8,17 @@ import z from "zod";
 import { postsSchema, userSchema } from "./utils/validator";
 import { cors } from "hono/cors";
 import { string } from "zod/mini";
+import { Redis } from "@upstash/redis";
+import { generateOtp, hashString, sendOtpEmail } from "./utils/auth";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { moderationCheck } from "./utils/moderator";
+import {
+  sendFlaggedContentMail,
+  sendFlaggedContentApprovalMail,
+  sendFlaggedContentRejectMail,
+  sendUserBanMail,
+} from "./utils/mailTemplate";
 
-// Define the type of the extended Prisma Client
 type ExtendedPrismaClient = ReturnType<typeof getExtendedPrisma>;
 function getExtendedPrisma(datasourceUrl: string) {
   return new PrismaClient({
@@ -20,17 +29,26 @@ function getExtendedPrisma(datasourceUrl: string) {
 const app = new Hono<{
   Bindings: CloudflareBindings;
   Variables: {
-    prisma: ExtendedPrismaClient;
+    prisma: PrismaClient;
     userId: any;
+    userType: "USER" | "ADMIN";
   };
 }>();
 
 app.use("*", logger());
-app.use(cors());
+app.use(
+  "*",
+  cors({
+    origin: (origin) => origin || "*",
+    credentials: true,
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
 app.use("*", async (c, next) => {
   const prisma = getExtendedPrisma(c.env.DATABASE_URL);
-  c.set("prisma", prisma);
+  c.set("prisma", prisma as any);
   await next();
 });
 
@@ -48,7 +66,57 @@ app.use("/api/v1/blog/*", async (c, next) => {
   }
   try {
     const verifyToken = await verify(token, c.env.JWT_SECRET, "HS256");
+
+    const userId = verifyToken.sub;
+    const isBanned = await c.env.INK_FOLD_BANNED_USERS.get(userId as string);
+    if (isBanned) {
+      return c.json(
+        {
+          message: "Unauthorized: Your accout has been Suspended !",
+        },
+        403,
+      );
+    }
+
+    c.set("userId", userId);
+    c.set("userType", verifyToken.userType as "USER" | "ADMIN");
+    await next();
+  } catch (error) {
+    return c.json(
+      {
+        message: "Unauthorized: Invalid or expired token",
+      },
+      401,
+    );
+  }
+});
+
+app.use("/api/v1/admin/*", async (c, next) => {
+  const header = c.req.header("Authorization");
+  const token = header?.split(" ")[1];
+
+  if (!token) {
+    return c.json(
+      {
+        message: "JWT Token not found !",
+      },
+      401,
+    );
+  }
+  try {
+    const verifyToken = await verify(token, c.env.JWT_SECRET, "HS256");
     c.set("userId", verifyToken.sub);
+    c.set("userType", verifyToken.userType as "USER" | "ADMIN");
+
+    if (verifyToken.userType !== "ADMIN") {
+      return c.json(
+        {
+          message: "Forbidden: Admin access required",
+        },
+        403,
+      );
+    }
+
     await next();
   } catch (error) {
     return c.json(
@@ -78,43 +146,169 @@ app.post("/api/v1/signup", async (c) => {
 
   const prisma = c.get("prisma");
 
-  // Check if there is an existing user with the same email
+  // Checking if there is an existing user with the same email
   const existingUser = await prisma.user.findUnique({
     where: {
       email: email,
     },
   });
-  if (existingUser) {
-    return c.json({ message: "User already exists with this email" }, 409);
+  if (existingUser?.isVerified) {
+    return c.json({ message: "User already exists and verified !" }, 409);
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
   try {
-    const createUser = await prisma.user.create({
-      data: {
-        email: email,
-        password: hashedPassword,
-        name: name,
-      },
+    // using || for unverfified existing users
+    const user =
+      existingUser ||
+      (await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          isVerified: false,
+        },
+      }));
+
+    const otp = generateOtp();
+    const otpHash = await hashString(otp);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    //
+    // await prisma.otp.upsert({
+    //   where: { email },
+    //   update: { otpHash, expiresAt },
+    //   create: { email, otpHash, expiresAt },
+    // });
+    //
+    const redis = new Redis({
+      url: c.env.UPSTASH_REDIS_REST_URL,
+      token: c.env.UPSTASH_REDIS_REST_TOKEN,
     });
+    await redis.set(`otp:${email}`, otpHash, { ex: 10 * 60 });
 
-    if (createUser) {
-      console.info(`User Created, email - ${createUser.email}`);
+    await sendOtpEmail(email, otp, c.env.RESEND_API_KEY);
 
-      const payload = {
-        sub: createUser.id,
-        email: createUser.email,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60,
-      };
-
-      const jwt = await sign(payload, c.env.JWT_SECRET, "HS256");
-
-      return c.json({ message: "User Created !", token: jwt }, 201);
-    }
+    return c.json(
+      {
+        message:
+          "Registration successful! Please check your email for the verification code",
+        email,
+      },
+      201,
+    );
   } catch (error) {
     console.error(`Error while creating user - ${error}`);
     return c.json({ message: "Error while creating the user !" }, 500);
+  }
+});
+
+// NOTE: OTP Verify Route
+
+app.post("/api/v1/verify-otp", async (c) => {
+  const { email, otp } = await c.req.json();
+  const prisma = c.get("prisma");
+
+  if (!email || !otp) {
+    return c.json(
+      {
+        message: "Email and OTP are required",
+      },
+      400,
+    );
+  }
+
+  try {
+    // const otpRecord = await prisma.otp.findUnique({
+    //   where: { email },
+    // });
+    //
+    const redis = new Redis({
+      url: c.env.UPSTASH_REDIS_REST_URL,
+      token: c.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const otpRecord = await redis.get(`otp:${email}`);
+
+    if (!otpRecord) {
+      return c.json(
+        {
+          message: "No active verification code found",
+        },
+        400,
+      );
+    }
+
+    const inputHash = await hashString(otp);
+    if (inputHash !== otpRecord) {
+      return c.json(
+        {
+          message: "Invalid verification code",
+        },
+        400,
+      );
+    }
+
+    const user = await prisma.user.update({
+      where: { email },
+      data: { isVerified: true },
+    });
+
+    // await prisma.otp.delete({ where: { email } });
+    await redis.del(`otp:${email}`);
+
+    // Implementation for the Single Device Login - remove existing sessions
+    await prisma.session.deleteMany({
+      where: { userId: user.id },
+    });
+
+    // Issue AccessTokens
+    const accessToken = await sign(
+      {
+        sub: user.id,
+        email: user.email,
+        userType: user.userType,
+        exp: Math.floor(Date.now() / 1000) + 15 * 60,
+      },
+      c.env.JWT_SECRET,
+      "HS256",
+    );
+
+    const refreshRaw = crypto.randomUUID();
+    const refreshHash = await hashString(refreshRaw);
+    const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 Days
+
+    // Creating a session with the refreshToken
+    await prisma.session.create({
+      data: {
+        refreshToken: refreshHash,
+        userId: user.id,
+        expiresAt: refreshExpiry,
+      },
+    });
+
+    setCookie(c, "refresh_token", refreshRaw, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60,
+    });
+
+    return c.json(
+      {
+        message: "Email verified successfully!, You are logged in.",
+        token: accessToken,
+      },
+      200,
+    );
+  } catch (error) {
+    console.error("Verification error: ", error);
+    return c.json(
+      {
+        message: "Internal server error",
+      },
+      500,
+    );
   }
 });
 
@@ -144,7 +338,27 @@ app.post("/api/v1/signin", async (c) => {
 
   if (!existingUser) {
     console.error(`User not found with email - ${email}`);
-    return c.json({ message: "No user found with this email" }, 401);
+    return c.json({ message: "Incorrect email or password" }, 401);
+  }
+
+  const isBanned = await c.env.INK_FOLD_BANNED_USERS.get(existingUser.id);
+  if (isBanned) {
+    return c.json(
+      {
+        message: "User is Suspended, Contact Admin !",
+      },
+      403,
+    );
+  }
+
+  if (!existingUser.isVerified) {
+    return c.json(
+      {
+        message: "Email not verified !, Re-SignUp to receive a code.",
+        unverified: true,
+      },
+      403,
+    );
   }
 
   try {
@@ -161,30 +375,225 @@ app.post("/api/v1/signin", async (c) => {
         401,
       );
     }
+
+    // Single-Device Login: delete all previous sessions
+    await prisma.session.deleteMany({ where: { userId: existingUser.id } });
     const payload = {
       sub: existingUser.id,
       email: existingUser.email,
-      exp: Math.floor(Date.now() / 1000) + 60 * 60,
+      userType: existingUser.userType,
+      exp: Math.floor(Date.now() / 1000) + 15 * 60,
     };
-    const token = await sign(payload, c.env.JWT_SECRET, "HS256");
+
+    const accessToken = await sign(payload, c.env.JWT_SECRET, "HS256");
+
+    const refreshRaw = crypto.randomUUID();
+    const refreshHash = await hashString(refreshRaw);
+    const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await prisma.session.create({
+      data: {
+        refreshToken: refreshHash,
+        userId: existingUser.id,
+        expiresAt: refreshExpiry,
+      },
+    });
+
+    setCookie(c, "refresh_token", refreshRaw, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60,
+    });
+
     return c.json(
       {
         message: "Signed in Successfully !",
-        token,
+        token: accessToken,
       },
       200,
     );
   } catch (error) {
-    return c.json({
-      message: "Invalid or expired authentication token !",
-      error,
+    console.error("User SignIn Error: ", error);
+    return c.json(
+      {
+        message: "Internal Server Error!",
+      },
+      500,
+    );
+  }
+});
+
+// NOTE: Refresh Token Route
+
+app.post("/api/v1/refresh", async (c) => {
+  const prisma = c.get("prisma");
+  const refreshRaw = getCookie(c, "refresh_token");
+
+  if (!refreshRaw) {
+    return c.json(
+      {
+        message: "Refresh token missing !",
+      },
+      401,
+    );
+  }
+
+  try {
+    const refreshHash = await hashString(refreshRaw);
+
+    const session = await prisma.session.findUnique({
+      where: { refreshToken: refreshHash },
+      include: { user: true },
     });
+
+    if (!session || new Date() > session.expiresAt) {
+      if (session) {
+        await prisma.session.delete({
+          where: { id: session.id },
+        });
+      }
+      return c.json(
+        {
+          message: "Session expired or invalid. Please sign in again.",
+        },
+        401,
+      );
+    }
+
+    // Token Rotation
+    await prisma.session.delete({
+      where: { id: session.id },
+    });
+
+    const newAccessToken = await sign(
+      {
+        sub: session.user.id,
+        email: session.user.email,
+        userType: session.user.userType,
+        exp: Math.floor(Date.now() / 1000) + 15 * 60,
+      },
+      c.env.JWT_SECRET,
+      "HS256",
+    );
+
+    const newRefreshRaw = crypto.randomUUID();
+    const newRefreshHash = await hashString(newRefreshRaw);
+    const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await prisma.session.create({
+      data: {
+        refreshToken: newRefreshHash,
+        userId: session.user.id,
+        expiresAt: refreshExpiry,
+      },
+    });
+
+    setCookie(c, "refresh_token", newRefreshRaw, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60,
+    });
+
+    return c.json(
+      {
+        token: newAccessToken,
+      },
+      200,
+    );
+  } catch (error) {
+    console.error("Refresh token error: ", error);
+    return c.json(
+      {
+        message: "Internal Server Error !",
+      },
+      500,
+    );
+  }
+});
+
+// NOTE: Signout Route
+app.post("/api/v1/signout", async (c) => {
+  const prisma = c.get("prisma");
+  const refreshRaw = getCookie(c, "refresh_token");
+
+  if (refreshRaw) {
+    try {
+      const refreshHash = await hashString(refreshRaw);
+      await prisma.session.delete({
+        where: { refreshToken: refreshHash },
+      });
+    } catch (error) {
+      console.error("Signout Route: ", error);
+    }
+  }
+
+  deleteCookie(c, "refresh_token", { path: "/" });
+
+  return c.json(
+    {
+      message: "Signed out of this device.",
+    },
+    200,
+  );
+});
+
+app.post("/api/v1/signout-all", async (c) => {
+  const prisma = c.get("prisma");
+  const header = c.req.header("Authorization");
+  const token = header?.split(" ")[1];
+
+  if (!token) {
+    return c.json(
+      {
+        message: "JWT Token not found !",
+      },
+      401,
+    );
+  }
+
+  let userId: string;
+  try {
+    const verifyToken = await verify(token, c.env.JWT_SECRET, "HS256");
+    userId = verifyToken.sub as string;
+  } catch (error) {
+    return c.json(
+      {
+        message: "Unauthorized: Invalid or expired token",
+      },
+      401,
+    );
+  }
+
+  try {
+    await prisma.session.deleteMany({
+      where: { userId: userId },
+    });
+
+    deleteCookie(c, "refresh_token", { path: "/" });
+    return c.json(
+      {
+        message: "Successfully logged out of all devices",
+      },
+      200,
+    );
+  } catch (error) {
+    console.error("Global signout error: ", error);
+    return c.json(
+      {
+        message: "Internal Server Error !",
+      },
+      500,
+    );
   }
 });
 
 app.post("/api/v1/blog", async (c) => {
   const body = await c.req.json();
-  const { title, content, draft, publish, coverImage } = body;
+  var { title, content, status, coverImage } = body;
 
   const parsedBody = postsSchema.safeParse(body);
   if (!parsedBody.success) {
@@ -198,6 +607,25 @@ app.post("/api/v1/blog", async (c) => {
   }
   const prisma = c.get("prisma");
   const userID = c.get("userId");
+  let finalStatus = status || "DRAFT";
+  let flaggedMetrics: string[] = [];
+
+  try {
+    const moderationResponse = await moderationCheck(
+      content,
+      c.env.GROQ_API_KEY,
+    );
+    if (moderationResponse.results[0].flagged) {
+      finalStatus = "UNDER_REVIEW";
+
+      const flaggedMetricCategories = moderationResponse.results[0].categories;
+      flaggedMetrics = Object.entries(flaggedMetricCategories)
+        .filter(([_, value]) => value)
+        .map(([key]) => key);
+    }
+  } catch (modError) {
+    console.error("Groq Moderation API Error :", modError);
+  }
 
   try {
     const createBlog = await prisma.post.create({
@@ -205,16 +633,34 @@ app.post("/api/v1/blog", async (c) => {
         title: title,
         content: content,
         authorId: userID,
-        draft: draft,
-        published: publish,
+        status: finalStatus,
+        flaggedMetrics,
         ...(coverImage ? { coverImage } : {}),
       },
     });
 
     if (createBlog) {
+      if (createBlog.status === "UNDER_REVIEW") {
+        try {
+          const author = await prisma.user.findUnique({
+            where: { id: userID },
+          });
+          if (author?.email) {
+            await sendFlaggedContentMail(
+              author.email,
+              createBlog.title,
+              createBlog.flaggedMetrics,
+              c.env.RESEND_API_KEY,
+            );
+          }
+        } catch (emailErr) {
+          console.error("Failed to send flagged content email:", emailErr);
+        }
+      }
       return c.json(
         {
           message: "Blog Created Successfully !",
+          blog: createBlog,
         },
         201,
       );
@@ -237,7 +683,7 @@ app.put("/api/v1/blog/:id", async (c) => {
   const blogId = c.req.param("id");
 
   const body = await c.req.json();
-  const { title, content, publish, draft, coverImage } = body;
+  const { title, content, status, coverImage } = body;
 
   const parsedBody = postsSchema.safeParse(body);
   if (!parsedBody.success) {
@@ -263,20 +709,69 @@ app.put("/api/v1/blog/:id", async (c) => {
     return c.json({ message: "Forbidden: You don't own this post" }, 403);
   }
 
+  let finalStatus =
+    status ||
+    (existingBlog.status === "UNDER_REVIEW" ? "DRAFT" : existingBlog.status);
+  let flaggedMetrics: string[] = [];
+
+  try {
+    const moderationResponse = await moderationCheck(
+      content,
+      c.env.GROQ_API_KEY,
+    );
+    if (moderationResponse.results[0].flagged) {
+      finalStatus = "UNDER_REVIEW";
+
+      const flaggedMetricCategories = moderationResponse.results[0].categories;
+      flaggedMetrics = Object.entries(flaggedMetricCategories)
+        .filter(([_, value]) => value)
+        .map(([key]) => key);
+    }
+  } catch (modError) {
+    console.error(
+      "Groq Moderation API Error (Rate Limit/Quota Exceeded):",
+      modError,
+    );
+    // Graceful Fail-Open: Allow saving/publishing, but log the error
+  }
+
   try {
     const updatedBlog = await prisma.post.update({
       where: { id: blogId },
       data: {
         title,
         content,
-        ...(publish !== undefined && { published: publish }),
-        ...(draft !== undefined && { draft }),
+        status: finalStatus,
+        flaggedMetrics,
         ...(coverImage !== undefined && { coverImage: coverImage || null }),
       },
     });
 
     if (updatedBlog) {
-      return c.json({ message: "Blog updated successfully !" }, 200);
+      if (updatedBlog.status === "UNDER_REVIEW") {
+        try {
+          const author = await prisma.user.findUnique({
+            where: { id: userId },
+          });
+          if (author?.email) {
+            await sendFlaggedContentMail(
+              author.email,
+              updatedBlog.title,
+              updatedBlog.flaggedMetrics,
+              c.env.RESEND_API_KEY,
+            );
+          }
+        } catch (emailErr) {
+          console.error(
+            "Failed to send flagged content email on update:",
+            emailErr,
+          );
+        }
+      }
+      return c.json(
+        { message: "Blog updated successfully !", blog: updatedBlog },
+        200,
+      );
     }
   } catch (error) {
     console.error("ERR: Updated Blog - ", error);
@@ -291,7 +786,7 @@ app.get("/api/v1/blog/all", async (c) => {
   try {
     const blogList = await prisma.post.findMany({
       where: {
-        published: true,
+        status: "PUBLISHED",
       },
       include: {
         author: {
@@ -326,13 +821,15 @@ app.get("/api/v1/blog/user", async (c) => {
   const prisma = c.get("prisma");
   const type = c.req.query("type"); // "published" | "drafts" | undefined
 
-  let whereClause: { authorId: string; published?: boolean; draft?: boolean } =
-    { authorId: userId };
+  let whereClause: any = { authorId: userId };
 
   if (type === "published") {
-    whereClause = { authorId: userId, published: true, draft: false };
+    whereClause = { authorId: userId, status: "PUBLISHED" };
   } else if (type === "drafts") {
-    whereClause = { authorId: userId, draft: true };
+    whereClause = {
+      authorId: userId,
+      status: { in: ["DRAFT", "UNDER_REVIEW"] },
+    };
   }
 
   try {
@@ -705,6 +1202,215 @@ app.delete("/api/v1/blog/:id", async (c) => {
     },
     200,
   );
+});
+
+// Admin Endpoints
+app.get("/api/v1/admin/review-queue", async (c) => {
+  const prisma = c.get("prisma");
+  try {
+    const queue = await prisma.post.findMany({
+      where: { status: "UNDER_REVIEW" },
+      include: {
+        author: {
+          select: { id: true, name: true, email: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return c.json({ queue }, 200);
+  } catch (error) {
+    console.error("ERR: Fetch review queue - ", error);
+    return c.json({ message: "Internal Server Error !" }, 500);
+  }
+});
+
+app.post("/api/v1/admin/blog/:id/approve", async (c) => {
+  const blogId = c.req.param("id");
+  const prisma = c.get("prisma");
+  try {
+    const post = await prisma.post.update({
+      where: { id: blogId },
+      data: { status: "PUBLISHED", flaggedMetrics: [] },
+      include: {
+        author: true,
+      },
+    });
+
+    if (post && post.author?.email) {
+      try {
+        await sendFlaggedContentApprovalMail(
+          post.author.email,
+          post.title,
+          c.env.RESEND_API_KEY,
+        );
+      } catch (emailErr) {
+        console.error("Failed to send approval email:", emailErr);
+      }
+    }
+
+    return c.json({ message: "Post approved!", post }, 200);
+  } catch (error) {
+    console.error("ERR: Approve post - ", error);
+    return c.json({ message: "Internal Server Error !" }, 500);
+  }
+});
+
+app.post("/api/v1/admin/blog/:id/reject", async (c) => {
+  const blogId = c.req.param("id");
+  const prisma = c.get("prisma");
+  const body = await c.req.json();
+
+  const rejectionReason = body.reason || null;
+  try {
+    const post = await prisma.post.update({
+      where: { id: blogId },
+      data: { status: "DRAFT", rejectionReason },
+      include: {
+        author: true,
+      },
+    });
+
+    if (post && post.author?.email) {
+      try {
+        await sendFlaggedContentRejectMail(
+          post.author.email,
+          post.title,
+          rejectionReason,
+          c.env.RESEND_API_KEY,
+        );
+      } catch (emailErr) {
+        console.error("Failed to send rejection email:", emailErr);
+      }
+    }
+
+    return c.json(
+      { message: "Post rejected and returned to drafts", post },
+      200,
+    );
+  } catch (error) {
+    console.error("ERR: Reject post - ", error);
+    return c.json({ message: "Internal Server Error !" }, 500);
+  }
+});
+
+app.post("/api/v1/admin/promote/:userId", async (c) => {
+  const userId = c.req.param("userId");
+  const prisma = c.get("prisma");
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { userType: "ADMIN" },
+    });
+    return c.json(
+      {
+        message: `${updatedUser.email} promoted to ADMIN successfully.`,
+        user: updatedUser,
+      },
+      200,
+    );
+  } catch (error) {
+    console.error("ERR: Promote user - ", error);
+    return c.json({ message: "Internal Server Error !" }, 500);
+  }
+});
+
+app.get("/api/v1/admin/userslist", async (c) => {
+  const prisma = c.get("prisma");
+  try {
+    const users = await prisma.user.findMany({
+      where: { isVerified: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        userType: true,
+        isBanned: true,
+        createdAt: true,
+        _count: {
+          select: { posts: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return c.json(
+      {
+        users,
+      },
+      200,
+    );
+  } catch (error) {
+    console.error("ERR: Fetch verified users list: ", error);
+    return c.json({ message: "Internal Server Error !" }, 500);
+  }
+});
+
+app.post("/api/v1/admin/users/:userId/ban", async (c) => {
+  const userId = c.req.param("userId");
+  const prisma = c.get("prisma");
+
+  try {
+    const banUser = await prisma.user.update({
+      where: { id: userId },
+      data: { isBanned: true },
+    });
+
+    await c.env.INK_FOLD_BANNED_USERS.put(userId, "true");
+
+    await prisma.session.deleteMany({
+      where: { userId: userId },
+    });
+
+    if (banUser && banUser.email) {
+      try {
+        await sendUserBanMail(banUser.email, c.env.RESEND_API_KEY);
+      } catch (emailErr) {
+        console.error("Failed to send user ban email:", emailErr);
+      }
+    }
+
+    return c.json(
+      {
+        message: `User ${banUser.email} is suspended successfully !`,
+      },
+      200,
+    );
+  } catch (error) {
+    console.error("ERR: Ban User - ", error);
+    return c.json(
+      {
+        message: "Internal Server Error !",
+      },
+      500,
+    );
+  }
+});
+
+app.post("/api/v1/admin/users/:userId/unban", async (c) => {
+  const userId = c.req.param("userId");
+  const prisma = c.get("prisma");
+
+  try {
+    const unbanUser = await prisma.user.update({
+      where: { id: userId },
+      data: { isBanned: false },
+    });
+
+    await c.env.INK_FOLD_BANNED_USERS.delete(userId);
+    return c.json(
+      {
+        message: `Suspension revoked for user - ${unbanUser.email}`,
+      },
+      200,
+    );
+  } catch (error) {
+    console.error("ERR: Unban User - ", error);
+    return c.json(
+      {
+        message: "Internal Server Error !",
+      },
+      500,
+    );
+  }
 });
 
 export default app;

@@ -28,6 +28,21 @@ function getAuthorInitials(blog: Blog): string {
     .toUpperCase();
 }
 
+function stripMarkdown(md: string): string {
+  return md
+    .replace(/^#{1,6}\s+/gm, "")          // headings
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")    // bold
+    .replace(/(\*|_)(.*?)\1/g, "$2")       // italic
+    .replace(/!\[.*?\]\(.*?\)/g, "")       // images
+    .replace(/\[([^\]]+)\]\(.*?\)/g, "$1") // links → label only
+    .replace(/`{1,3}[^`]*`{1,3}/g, "")    // inline & fenced code
+    .replace(/^[>\-\*\+]\s+/gm, "")        // blockquotes & list bullets
+    .replace(/^-{3,}$/gm, "")              // horizontal rules
+    .replace(/\n{2,}/g, " ")               // collapse blank lines
+    .replace(/\s+/g, " ")                  // collapse whitespace
+    .trim();
+}
+
 function estimateReadTime(content: string): string {
   const words = content.trim().split(/\s+/).length;
   const mins = Math.max(1, Math.ceil(words / 200));
@@ -172,7 +187,7 @@ const BlogsPage = () => {
                     >
                       <div className="blog-card-tag">Featured Story</div>
                       <h2 className="blog-card-title">{blog.title}</h2>
-                      <p className="blog-card-excerpt">{blog.content}</p>
+                      <p className="blog-card-excerpt">{stripMarkdown(blog.content)}</p>
                       <div className="blog-card-meta">
                         <div className="blog-card-author">
                           <div className="author-avatar">
@@ -218,7 +233,7 @@ const BlogsPage = () => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="blog-card-tag">Story</div>
                       <h3 className="blog-card-title">{blog.title}</h3>
-                      <p className="blog-card-excerpt">{blog.content}</p>
+                      <p className="blog-card-excerpt">{stripMarkdown(blog.content)}</p>
                       <div className="blog-card-meta">
                         <div className="blog-card-author">
                           <div className="author-avatar">
